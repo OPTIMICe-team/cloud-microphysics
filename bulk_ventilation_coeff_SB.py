@@ -6,7 +6,7 @@ and Appending in Seifert 2008, "On the evaporation ..."
 
 import numpy as np
 from scipy.special import gamma
-#from IPython.core.debugger import Tracer ; debug = Tracer()
+from IPython.core.debugger import Tracer ; debug = Tracer()
 import matplotlib.pyplot as plt
 
 #select particle
@@ -97,25 +97,6 @@ def generalized_gamma(n,x,nu,mu,x_array):
 
     return N_m,A,lam
 
-def bulk_velocity_pow(x,nu,mu,a_vel,b_vel,kth_moment=1):
-    '''
-    calculate the bulk velocity of a certain moment
-    
-    INPUT:
-        x: mean mass
-        nu,mu: shape parameters
-        bvel: exponent in power law
-        kth_moment: moment (0: number, 1: mass 2: reflectivity(?))
-    OUTPUT:
-        
-    '''
-
-    #--- apply formula 78 in Seifert+Beheng, 2006
-    first_term = a_vel * gamma((kth_moment + nu + b_vel + 1.)/mu) / gamma((kth_moment + nu + 1.)/mu)
-    second_term = ( gamma((nu + 1.)/mu) / gamma((nu + 2.)/mu) )**b_vel
-
-    return first_term * second_term * x**b_vel
-
 #some constants
 rho_w = 1000.
 N_sc = 0.710        #..Schmidt-Zahl (PK, S.541)
@@ -139,10 +120,15 @@ v_array_Atlas       = p[p_name].a_Atlas - p[p_name].b_Atlas * np.exp( - p[p_name
 f_v_array_pow       = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f/nu_l**0.5 * ( v_array_pow * D_array ) ** 0.5 #single particle ventilation coefficient
 f_v_array_Atlas     = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f/nu_l**0.5 * ( v_array_Atlas * D_array ) ** 0.5 #single particle ventilation coefficient
 
+##check terminal velocitites
+#plt.semilogx(D_array,v_array_pow,color="b")
+#plt.semilogx(D_array,v_array_Atlas,color="r")
+#print(m_array,D_array,Deq_array,v_array) #uncomment to check particle properties
+
+#calculate coefficients in m=a_m*Dmax**b_m
 a_m = p[p_name].a_geo**(-1./p[p_name].b_geo) #prefactor in m=a_m D ** b
 b_m = 1./p[p_name].b_geo #exponent in m=a_m D ** b
 a_star = (np.pi/6. * rho_w/a_m)**(1./b_m)
-#print(m_array,D_array,Deq_array,v_array) #uncomment to check particle properties
 
 #set bulk properties
 L = 1e-3 #mass concentration
@@ -159,7 +145,6 @@ f_v_bulk_Atlas_num = np.zeros_like(D_mean_array)
 depos_pow_num = np.zeros_like(D_mean_array) 
 depos_Atlas_num = np.zeros_like(D_mean_array) 
 N_array = np.zeros_like(D_mean_array) 
-N0D_array = np.zeros_like(D_mean_array) 
 N0m_array = np.zeros_like(D_mean_array) 
 
 #loop over different mean masses
@@ -172,7 +157,6 @@ for i,Dmean in enumerate(D_mean_array):
     N_m,N0m_array[i],lamm = generalized_gamma(N_array[i],xmean_array[i],p[p_name].nu,p[p_name].mu,m_array)
     #mue  = (p[p_name].nu+1.0)/p[p_name].b_geo - 1.0  # shape parameter of Deq distribution (assumes p[p_name].mu=1/3)
     mue  = 3.*p[p_name].nu+2  # shape parameter of Deq distribution (assumes p[p_name].mu=1/3)
-    N_D,N0D_array[i],lamD = generalized_gamma(N_array[i],xmean_array[i],mue,1,D_array)
 
     Ntot = 0; Ltot = 0
     for i_m,m in enumerate(m_array[:-1]):
@@ -196,8 +180,8 @@ for i,Dmean in enumerate(D_mean_array):
 ##################
 #power law analytical from Axels diss
 ##################
-a_vent_bulk = p[p_name].a_ven * gamma( (p[p_name].nu + 1 + p[p_name].b_geo) / p[p_name].mu ) / gamma((p[p_name].nu+1) / p[p_name].mu) * ( gamma((p[p_name].nu+1)/p[p_name].mu)/gamma((p[p_name].nu+2)/p[p_name].mu) )**(p[p_name].b_geo)#eq 3.121
-b_vent_bulk = p[p_name].b_ven * gamma( (p[p_name].nu+1+3./2.*p[p_name].b_geo+1./2.*p[p_name].b_vel) / p[p_name].mu ) / gamma( (p[p_name].nu+1)/ p[p_name].mu ) * ( gamma( (p[p_name].nu+1) / p[p_name].mu )/gamma( (p[p_name].nu+2)/ p[p_name].mu ) )**(3./2.*p[p_name].b_geo + 1./2. * p[p_name].b_vel)#eq 3.121
+a_vent_bulk = p[p_name].a_ven * gamma( (p[p_name].nu + 1. + p[p_name].b_geo) / p[p_name].mu ) / gamma((p[p_name].nu+1.) / p[p_name].mu) * ( gamma((p[p_name].nu+1.)/p[p_name].mu)/gamma((p[p_name].nu+2.)/p[p_name].mu) )**(p[p_name].b_geo)#eq 4.121
+b_vent_bulk = p[p_name].b_ven * gamma( (p[p_name].nu+1.+3./2.*p[p_name].b_geo+1./2.*p[p_name].b_vel) / p[p_name].mu ) / gamma( (p[p_name].nu+1.)/ p[p_name].mu ) * ( gamma( (p[p_name].nu+1.) / p[p_name].mu )/gamma( (p[p_name].nu+2.)/ p[p_name].mu ) )**(3./2.*p[p_name].b_geo + 1./2. * p[p_name].b_vel)#eq 4.122
 
 f_vent_bulk_pow_ana = np.zeros_like(D_mean_array)
 depos_pow_ana= np.zeros_like(D_mean_array)
@@ -207,8 +191,9 @@ for i,Dmean in enumerate(D_mean_array):
     x = 1./(p[p_name].a_geo)**(1./p[p_name].b_geo)*Dmean**(1./p[p_name].b_geo)
 
     #calculate bulk velocity
-    v_bulk_pow = bulk_velocity_pow(x,p[p_name].nu,p[p_name].mu,p[p_name].a_vel,p[p_name].b_vel,kth_moment=1)
-    f_vent_bulk_pow_ana[i] = a_vent_bulk + b_vent_bulk * N_sc**n_f * (v_bulk_pow * Dmean / nu_l)**0.5
+    #v_bulk_pow = bulk_velocity_pow(x,p[p_name].nu,p[p_name].mu,p[p_name].a_vel,p[p_name].b_vel,kth_moment=1)
+    v_pow = p[p_name].a_vel*xmean_array[i]**p[p_name].b_vel
+    f_vent_bulk_pow_ana[i] = a_vent_bulk + b_vent_bulk * N_sc**n_f * (v_pow * Dmean / nu_l)**0.5 #eq. 3.120
     depos_pow_ana[i] = Dmean * N_array[i] * f_vent_bulk_pow_ana[i]
 
 ###############
@@ -216,9 +201,12 @@ for i,Dmean in enumerate(D_mean_array):
 ###############
 #initialize arrays for bulk rates
 f_vent_bulk_Atlas_ana = np.zeros_like(D_mean_array)
+f_vent_bulk_Atlas_ana_O6 = np.zeros_like(D_mean_array)
+f_vent_bulk_Atlas_ana_O7 = np.zeros_like(D_mean_array)
 f_vent_bulk_Atlas_ana2 = np.zeros_like(D_mean_array)
 depos_Atlas_ana = np.zeros_like(D_mean_array)
-depos_Atlas_ana2 = np.zeros_like(D_mean_array)
+depos_Atlas_ana_O6 = np.zeros_like(D_mean_array)
+depos_Atlas_ana_O7 = np.zeros_like(D_mean_array)
 
 aa = p[p_name].a_Atlas
 bb = p[p_name].b_Atlas
@@ -256,7 +244,7 @@ if p_name=="rain_mD":
         print("Dmean,pow. ana./pow. num.,Atlas ana./Atlas num.",Dmean,depos_pow_ana[i]/depos_pow_num[i],depos_Atlas_ana[i]/depos_Atlas_num[i],1./(np.pi/6.*rho_w*Dmean**3)*(0.017*Dmean**1.95))
 else: #ice (only works for m=a D**2 ?)
 
-    mm = mue+9./2./b_m+1    
+    mm = mue+9./(2.*b_m)+1    
     gamma_1 = gamma(mue+3./b_m+1)
     gamma_2 = gamma(mm)
     gamma_3 = gamma(mue+1)
@@ -264,17 +252,46 @@ else: #ice (only works for m=a D**2 ?)
         
         lam = lam_array[i]
 
-        f_vent_bulk_Atlas_ana[i]  = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f *                     \
-                      gamma_2 / gamma_1 / lam**(3./2./b_m) * a_star**0.5 * np.sqrt(aa/nu_l)                  \
-              * (1.0 - 1./2.  * (bb/aa)**1 * (lam/(1.*cc+lam))**mm \
-                     - 1./8.  * (bb/aa)**2 * (lam/(2.*cc+lam))**mm \
-                     - 1./16. * (bb/aa)**3 * (lam/(3.*cc+lam))**mm \
-                     - 5./127.* (bb/aa)**4 * (lam/(4.*cc+lam))**mm )
+        '''
+        series_expansion_O5 =   (1.0 - 1./2.  * (bb/aa)**1 * (lam/(1.*cc+lam))**mm  - 1./8.  * (bb/aa)**2 * (lam/(2.*cc+lam))**mm  - 1./16. * (bb/aa)**3 * (lam/(3.*cc+lam))**mm   - 5./127.* (bb/aa)**4 * (lam/(4.*cc+lam))**mm )
+        series_expansion_O6 = series_expansion_O5 - 7./256. * (bb/aa)**5. * (lam/(5.*cc+lam))**mm   #to 6th order
+        series_expansion_O7 = series_expansion_O5 - 63./6144 * (bb/aa)**6. * (lam/(6.*cc+lam))**mm  #to 7th order
+
+        without_series_expansion = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f *  \
+                                    gamma_2 / gamma_1 / lam**(3./(2.*b_m)) * a_star**(1./2.) * np.sqrt(aa/nu_l) 
+                                    
+
+        f_vent_bulk_Atlas_ana[i]  = without_series_expansion * series_expansion_O5
+        f_vent_bulk_Atlas_ana_O6[i]  = without_series_expansion * series_expansion_O6
+        f_vent_bulk_Atlas_ana_O7[i]  = without_series_expansion * series_expansion_O7
 
         depos_Atlas_ana[i] = N_array[i] * a_star *  gamma_1/gamma_3 /lam**(3./b_m) * f_vent_bulk_Atlas_ana[i]
+        depos_Atlas_ana_O6[i] = N_array[i] * a_star *  gamma_1/gamma_3 /lam**(3./b_m) * f_vent_bulk_Atlas_ana_O6[i]
+        depos_Atlas_ana_O7[i] = N_array[i] * a_star *  gamma_1/gamma_3 /lam**(3./b_m) * f_vent_bulk_Atlas_ana_O7[i]
+        '''
+
+        series_expansion_O5 =  (1.0 - 1./2.  * (bb/aa)**1 * (lam/(1.*cc+lam))**mm \
+                      - 1./8.  * (bb/aa)**2 * (lam/(2.*cc+lam))**mm \
+                      - 1./16. * (bb/aa)**3 * (lam/(3.*cc+lam))**mm \
+                      - 5./127.* (bb/aa)**4 * (lam/(4.*cc+lam))**mm )
+        series_expansion_O6 = series_expansion_O5 - 7./256. * (bb/aa)**5. * (lam/(5.*cc+lam))**mm   #to 6th order
+        series_expansion_O7 = series_expansion_O5 - 63./6144 * (bb/aa)**6. * (lam/(6.*cc+lam))**mm  #to 7th order
+
+        f_vent_bulk_Atlas_ana[i]  = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f *                     \
+            gamma_2 / gamma_1 / lam**(3./2./b_m) * a_star**0.5 * np.sqrt(aa/nu_l) * series_expansion_O5
+        f_vent_bulk_Atlas_ana_O6[i]  = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f *                     \
+            gamma_2 / gamma_1 / lam**(3./2./b_m) * a_star**0.5 * np.sqrt(aa/nu_l) * series_expansion_O6
+        f_vent_bulk_Atlas_ana_O7[i]  = p[p_name].a_ven + p[p_name].b_ven * N_sc**n_f *                     \
+            gamma_2 / gamma_1 / lam**(3./2./b_m) * a_star**0.5 * np.sqrt(aa/nu_l) * series_expansion_O7
+
+
+        depos_Atlas_ana[i] = N_array[i] * a_star *  gamma_1/gamma_3 /lam**(3./b_m) * f_vent_bulk_Atlas_ana[i]
+        depos_Atlas_ana_O6[i] = N_array[i] * a_star *  gamma_1/gamma_3 /lam**(3./b_m) * f_vent_bulk_Atlas_ana_O6[i]
+        depos_Atlas_ana_O7[i] = N_array[i] * a_star *  gamma_1/gamma_3 /lam**(3./b_m) * f_vent_bulk_Atlas_ana_O7[i]
+
 
         #compare numerical to analytical solutions
-        print("Dmean,pow. ana./pow. num.,Atlas ana./Atlas num.",Dmean,depos_pow_ana[i]/depos_pow_num[i],depos_Atlas_ana[i]/depos_Atlas_num[i],N_array[i],a_star)
+        print("Dmean,pow. ana./pow. num.,Atlas ana./Atlas num.,Atlas ana./pow ana.",Dmean,depos_pow_ana[i]/depos_pow_num[i],depos_Atlas_ana[i]/depos_Atlas_num[i],depos_Atlas_ana[i]/depos_pow_ana[i])
 ###########
 ###plotting
 ##########
@@ -302,6 +319,8 @@ for i_xvar,xvar in enumerate([D_mean_array,xmean_array]):
     axes[i_xvar].semilogx(xvar,depos_Atlas_num/N_array,linestyle='--',color='r',label="Atlas. num.")
     axes[i_xvar].semilogx(xvar,depos_pow_ana/N_array,linestyle='-',color='b',label="pow. ana.")
     axes[i_xvar].semilogx(xvar,depos_Atlas_ana/N_array,linestyle='-',color='r',label="Atlas ana.")
+    #axes[i_xvar].semilogx(xvar,depos_Atlas_ana_O6/N_array,linestyle='-',color='r',label="Atlas ana.O6") #sixth order in series expansion
+    #axes[i_xvar].semilogx(xvar,depos_Atlas_ana_O7/N_array,linestyle='-',color='r',label="Atlas ana. O7") #seventh order in series expansion
 
 
 axes[0].set_xlabel("mean mass diameter [m]")
@@ -316,7 +335,9 @@ plt.savefig("Atlas_and_powerlaw.png")
 #error analytic vs. numeric in %
 fig,axes = plt.subplots(ncols=2)
 for i_xvar,xvar in enumerate([D_mean_array,xmean_array]):
-    axes[i_xvar].semilogx(xvar,(depos_Atlas_ana-depos_Atlas_num)/depos_Atlas_num*100,linestyle='-',color='r',label="Atlas")
+    axes[i_xvar].semilogx(xvar,(depos_Atlas_ana-depos_Atlas_num)/depos_Atlas_num*100,linestyle='-',color='r',label="Atlas (O5)")
+    axes[i_xvar].semilogx(xvar,(depos_Atlas_ana_O6-depos_Atlas_num)/depos_Atlas_num*100,linestyle='--',color='r',label="Atlas (O6)")
+    axes[i_xvar].semilogx(xvar,(depos_Atlas_ana_O7-depos_Atlas_num)/depos_Atlas_num*100,linestyle='-.',color='r',label="Atlas (O7)")
     axes[i_xvar].semilogx(xvar,(depos_pow_ana-depos_pow_num)/depos_pow_num*100,linestyle='-',color='b',label="powerlaw")
 axes[0].set_xlabel("mean mass diameter [m]")
 axes[1].set_xlabel("mean mass [kg]")
