@@ -8,13 +8,13 @@ additionally you can also calculate the PSD/or PMD (mass)
 '''
 
 import numpy as np
-import pyPamtra
+#import pyPamtra
 import sys
 
-from IPython.core.debugger import Tracer; debug = Tracer(); 
+from IPython.core.debugger import set_trace
 run_quick=False
 
-#print "Settings"
+#print("Settings")
 #replaced cloud ice by "Column" and snow by "Mix2" #ATTENTION: size distribution parameter are not recalculated according 
 #define particle class
 def init_class():
@@ -146,6 +146,8 @@ def init_class():
             a_Atlas     =1.121,
             b_Atlas     =1.119,
             c_Atlas     =2292.2,
+            a_vel       = 1.964e01,
+            b_vel       = 0.202645,
             ssrg        ="0.22_0.60_1.81_0.11",
             gam_eq      =685.93,   # & !..gam_eq, A(D_eq)
             sig_eq      =2.73      ) #!..sig_eq, A(D_eq)
@@ -172,7 +174,7 @@ def init_class():
             gam_eq      =685.93,   # & !..gam_eq, A(D_eq)
             sig_eq      =2.73      ) #!..sig_eq, A(D_eq)
 
-    p["SBBcloud_water"] = particle(nu_SB	=  1.,
+    p["cloud_nuemue1"] = particle(nu_SB	=  1.,
                             mu_SB       = 1.0,
                             a_geo       =  0.124,
                             b_geo       =  0.33333,
@@ -182,6 +184,9 @@ def init_class():
                             mu_SB        = 0.33333,
                             a_geo      =  0.124,
                             b_geo      =  0.33333,
+                            a_Atlas     =  9.292000,  #& !..alfa
+                            b_Atlas     =  9.623000,  #& !..beta
+                            c_Atlas     =  6.222e+2,  #& !..gama
                             xmax      = 3.00e-06,  #& !..x_max
                             xmin      = 2.60e-10)  #& !..x_min
     p["SBB_cloud_ice"] = particle(nu_SB	        =  0.,
@@ -204,6 +209,8 @@ def init_class():
                             mu_SB      = 0.33333,
                             a_geo      =  0.142,
                             b_geo      =  0.314,
+                            a_vel      =  86.89371,
+                            b_vel      =  0.268325,
                             xmax       =  5.00e-04, #& #!..x_max..maximale Teilchenmasse
                             xmin       =  1.00e-09) #& !..x_min..minimale Teilchenmasse
     p["SBB_hail"] = particle(        nu_SB      =  1.0,
@@ -266,6 +273,41 @@ def calculate_PSD(twomom,curr_cat,diam,i_height=249):
     
     return N_D,M_D
 
+def calculate_PSM(q,N,curr_cat,mass_array):
+    '''
+    q,N:        0th and 1st moment of the particle mass distribution (PSM)
+    curr_cat:   particle class (contains shape parameter etc.)
+    mass_array: array of masses at which PSM is evaluated
+    '''
+    from scipy.special import gamma
+
+    lam = (gamma((curr_cat.nu_SB+1.)/curr_cat.mu_SB)/gamma((curr_cat.nu_SB+2.)/curr_cat.mu_SB)*q/N)**(-curr_cat.mu_SB)
+    A   = curr_cat.mu_SB * N / gamma((curr_cat.nu_SB+1.)/curr_cat.mu_SB) * lam**((curr_cat.nu_SB+1.)/curr_cat.mu_SB)
+    
+    f_m = A * mass_array**curr_cat.nu_SB * np.exp(-lam * mass_array**curr_cat.mu_SB) 
+
+    return f_m
+
+def calculate_moments_and_fluxes_from_PSM(mass_array,f_m,curr_cat):
+    '''
+    curr_cat:   particle class (contains shape parameter etc.)
+    mass_array: array of masses at which PSM is evaluated
+    f_m:        mass distribution
+    '''
+    #TODO?: fluxes are not calculated yet
+
+    moments = [0,0,0]
+    fluxes  = [0,0,0]
+
+    delta_m_array = np.diff(mass_array)
+
+    for i_mom in [0,1,2]:
+        for i_mass,mass in enumerate(mass_array[:-1]):
+            moments[i_mom] += (mass_array[i_mass+1]**i_mom*f_m[i_mass+1] + mass_array[i_mass]**i_mom*f_m[i_mass])/2. * delta_m_array[i_mass]
+            #fluxes[i_mom] += (mass_array[i_mass+1]**i_mom*f_m[idd_mass+1]*curr_cat.a_Atlas-curr_cat.b_Atlas*np.exp(-curr_cat.c_Atlas* + mass_array[i_mass]**i_mom*f_m[i_mass])/2. * delta_m_array[i_mass]
+
+
+    return moments
 
 def conv_from_Nm_to_ND(curr_cat,nu_SB=None,mu_SB=None):
    '''
@@ -289,7 +331,7 @@ def conv_from_Nm_to_ND(curr_cat,nu_SB=None,mu_SB=None):
 def main(particle_types,nu_SB_array=None,mu_SB_array=None):
     p= init_class()
     for particle in particle_types:
-        print "calculate: ",particle    
+        print("calculate: ",particle    )
         #select particle type
         if particle=="plate":
             cloud_ice=p["plate"]
@@ -312,18 +354,35 @@ def main(particle_types,nu_SB_array=None,mu_SB_array=None):
         elif particle=="col_Mix2SB":
             cloud_ice=p["column"]
             snow=p["Mix2"]
+        elif particle=="cloud_nuemue1":
+            cloud_ice   = p["cloud_nuemue1"] #thats a hack -> we only want to get cloud water here
+            snow        = cloud_ice
+
         if nu_SB_array==None:
             nu_SB_array=[snow.nu_SB]
         if mu_SB_array==None:
             mu_SB_array=[snow.mu_SB]
         for nu_SB in nu_SB_array: 
             for mu_SB in mu_SB_array:
-                print mu_SB
+                print(nu_SB,mu_SB)
                 #recalculate mu based on the set nu_SB
-                cloud_ice.mu=cloud_ice.b_ms*cloud_ice.nu_SB+cloud_ice.b_ms-1
-                snow.mu=snow.b_ms*nu_SB+snow.b_ms-1
+                cloud_ice.mu    =   cloud_ice.b_ms*nu_SB+cloud_ice.b_ms-1
+                snow.mu         =   snow.b_ms*nu_SB+snow.b_ms-1
                 #recalculate gam based on the set mu_SB
-                cloud_ice.gam=cloud_ice.b_ms*cloud_ice.mu_SB
-                snow.gam=snow.b_ms*mu_SB
+                cloud_ice.gam   =   cloud_ice.b_ms*mu_SB
+                snow.gam        =   snow.b_ms*mu_SB
+                if not particle in ["cloud_nuemue1"]:
+                    print(nu_SB,mu_SB,"particle category a_ms,  b_ms,  mu,  gam, Atlas a , b , c")
+                    print(particle,"cloud ice",cloud_ice.a_ms,cloud_ice.b_ms,cloud_ice.mu,cloud_ice.gam,cloud_ice.a_Atlas,cloud_ice.b_Atlas,cloud_ice.c_Atlas)
+                    print(particle,"snow",snow.a_ms,snow.b_ms,snow.mu,snow.gam,snow.a_Atlas,snow.b_Atlas,snow.c_Atlas)
+                else:
+                    print(nu_SB,mu_SB,"particle category a_ms,  b_ms,  mu,  gam")
+                    print(particle,particle,cloud_ice.a_ms,cloud_ice.b_ms,cloud_ice.mu,cloud_ice.gam)
+
 if __name__ == "__main__":
-    p= init_class(); debug()
+    p= init_class()
+    set_trace()
+    #main(["column","needle","col_Mix2"],nu_SB_array=[0.0,2.0],mu_SB_array=None)
+    main(["col_Mix2"],nu_SB_array=[-0.4845361,0.0,2.0],mu_SB_array=None)
+    #main(["cloud_nuemue1"])
+
