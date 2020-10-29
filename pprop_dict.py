@@ -344,6 +344,15 @@ def conv_from_Nm_to_ND(curr_cat,nu_SB=None,mu_SB=None):
    curr_cat.gam = curr_cat.b_ms*curr_cat.mu_SB
    return curr_cat
 
+def calculate_vD_Atlas(cat,Dmax):
+
+    rho     = 1000. #water bulk density
+    Deq     = (6.*cat.a_ms/np.pi/rho*Dmax**cat.b_ms)**(1./3.)
+
+    vterm   = cat.a_Atlas-cat.b_Atlas*np.exp(-cat.c_Atlas*Deq)
+
+    return vterm
+
 def main(particle_types,nu_SB_array=None,mu_SB_array=None):
     p= init_class()
     for particle in particle_types:
@@ -397,9 +406,23 @@ def main(particle_types,nu_SB_array=None,mu_SB_array=None):
 
 if __name__ == "__main__":
     p= init_class()
-    g=p["SBB_graupel_denseX2"]
-    g0=p["SBB_graupel"]
+
+    ###get some graupel properties
+    #g=p["SBB_graupel_denseX2"]
+    #g0=p["SBB_graupel"]
+
+    ###illustrate how to calculate the terminal velocity
+    for cat in ["plate"]:
+        curr_cat = p[cat]
+        Dmax    = np.logspace(-4,np.log10(4e-2),100)
+        vterm   =   calculate_vD_Atlas(curr_cat,Dmax)
+        print(cat,"vterm",vterm)
+    import matplotlib.pyplot as plt
+    plt.semilogx(Dmax,vterm)
+    plt.show()
     set_trace()
+
+    ###calculate some parameters needed for PAMTRA calculations (e.g. PSD parameters in N(D))
     #main(["column","needle","col_Mix2"],nu_SB_array=[0.0,2.0],mu_SB_array=None)
     #main(["col_Mix2"],nu_SB_array=[-0.4845361,0.0,2.0],mu_SB_array=None)
     #main(["SBB_graupel_denseX2"])
