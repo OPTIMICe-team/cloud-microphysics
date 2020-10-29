@@ -205,9 +205,25 @@ def init_class():
                             b_vel  =  0.125 ,
                             xmax   =  2.00e-05, #& !..x_max..maximale Teilchenmasse
                             xmin   =  1.00e-10) #& !..x_min..minimale Teilchenmasse
-    p["SBB_graupel"] = particle(     nu_SB      =  1.0,
-                            mu_SB      = 0.33333,
+    p["SBB_graupel"] = particle(     nu_SB      =  1.0, #graupelhail_cosmo5
+                            mu_SB      =  0.33333,
                             a_geo      =  0.142,
+                            b_geo      =  0.314,
+                            a_vel      =  86.89371,
+                            b_vel      =  0.268325,
+                            xmax       =  5.00e-04, #& #!..x_max..maximale Teilchenmasse
+                            xmin       =  1.00e-09) #& !..x_min..minimale Teilchenmasse
+    p["SBB_graupel_denseX2"] = particle(     nu_SB      =  1.0, #graupelhail_cosmo5 _denseX2 = particle_frozen( & ! graupelhail2test4 but two times lower density
+                            mu_SB      =  0.33333,
+                            a_geo      =  0.176,
+                            b_geo      =  0.314,
+                            a_vel      =  86.89371,
+                            b_vel      =  0.268325,
+                            xmax       =  5.00e-04, #& #!..x_max..maximale Teilchenmasse
+                            xmin       =  1.00e-09) #& !..x_min..minimale Teilchenmasse
+    p["SBB_graupel_denseX4"] = particle(     nu_SB      =  1.0, #graupelhail_cosmo5 _denseX2 = particle_frozen( & ! graupelhail2test4 but two times lower density
+                            mu_SB      =  0.33333,
+                            a_geo      =  0.220,
                             b_geo      =  0.314,
                             a_vel      =  86.89371,
                             b_vel      =  0.268325,
@@ -381,8 +397,10 @@ def main(particle_types,nu_SB_array=None,mu_SB_array=None):
 
 if __name__ == "__main__":
     p= init_class()
+    g=p["SBB_graupel_denseX2"]
+    g0=p["SBB_graupel"]
     set_trace()
     #main(["column","needle","col_Mix2"],nu_SB_array=[0.0,2.0],mu_SB_array=None)
-    main(["col_Mix2"],nu_SB_array=[-0.4845361,0.0,2.0],mu_SB_array=None)
-    #main(["cloud_nuemue1"])
+    #main(["col_Mix2"],nu_SB_array=[-0.4845361,0.0,2.0],mu_SB_array=None)
+    #main(["SBB_graupel_denseX2"])
 
