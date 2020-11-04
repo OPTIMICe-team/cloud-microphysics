@@ -15,6 +15,79 @@ def find_nearest(array, value):
 
     return idx,array[idx]
 
+def rational(x1,x2, p, q):
+    """
+    The general rational function description.
+    p is a list with the polynomial coefficients in the numerator
+    q is a list with the polynomial coefficients (except the first one)
+    in the denominator
+    The zeroth order coefficient of the denominator polynomial is fixed at 1.
+    Numpy stores coefficients in [x**2 + x + 1] order, so the fixed
+    zeroth order denominator coefficent must comes last. (Edited.)
+    """
+    return np.polynomial.polynomial.polyval2d(x1,x2, p) / np.polynomial.polynomial.polyval2d(x1,x2,q)
+
+def rational_fit_function(xdata,p0,p10,p01,p20,p02,p11,p30,p21,p12,p40,q10,q01,q20,q02,q11,q30,q21,q12,q40):
+    
+    #''
+    #functional relationship which is adjusted in fit
+    #''
+    
+    #rational function
+    x,y   = xdata
+
+    p   = p0 + p10 * x +  p01 * y + p20 * x**2 + p02 * y**2 + p11 * x * y + p30 * x**3 + p21 * x**2*y + p12*x*y**2 + p40 * x**4
+    q   = 1.0+ q10 * x + q01 * y + q20 * x**2  + q02 * y**2 + q11 * x * y + q30 * x**3 + q21 * x**2*y + q12*x*y**2 + q40 * x**4
+
+    return p/q 
+    #return rational(x1,x2, [[p11,p12],[p21,p22]], [[1.0,q12],[q21,q22]]) #alternative: use full set of polynomial (additional parameter seem to make the fit harder)
+
+def fit_2D_function(x,y,z): 
+
+    from scipy import optimize
+
+    #fitcoeffs, pcov = optimize.curve_fit(fit_function, [x,y], z,method="lm", p0=( 0.0, -0.1, 10.0, 1e-7))   #p0 guesses p1,px1,px2,py1
+    #ydata   = z.ravel(order="F")
+
+    zmatrix = z.reshape(len(x),len(y))
+
+    D_snow_max      = -3.122448979591837
+    x_transform     = x - D_snow_max
+    y_transform     = y*1e5
+    #crop data to disregard small clouddroplet in fit
+
+    ydata   = zmatrix.flatten(order="F")
+
+    #ydata   = zmatrix.flatten(order="C")
+    for i_cloud,Dcloud in enumerate(y):
+        z_cloud     = zmatrix[:,i_cloud]
+        zmax,i_zmax = [np.max(z_cloud),np.argmax(z_cloud)]
+        D_snow_max  = x[i_zmax]
+        print("Dcloud",Dcloud,"Dmax[mm]",10**x[i_zmax]*1e3,"log10(Dmax)",x[i_zmax],"ecoll_max",zmax)
+
+    X, Y = np.meshgrid(x_transform,y_transform)
+    xdata   = np.vstack((X.ravel(), Y.ravel()))
+
+    x_min   = -5 - D_snow_max
+    x_max   = np.log10(5e-2) - D_snow_max
+    ydata   = np.ma.masked_where(xdata[0] < x_min , ydata)
+    ydata   = np.ma.masked_where(xdata[0] > x_max , ydata)
+
+    #rational_fit_function(xdata,p0,p10,p01,p20,p02,p11,p30,p21,p12,p40,q10,q01,q20,q02,q11,q30,q21,q12,q40):
+    #fit_coeffs  =               [0.0,0.01,0.2,-0.2,0.0,0.0,0.0001,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+    fit_coeffs  =              [-0.35995764, -0.24457378,  0.78101323, -0.1019918,   0.04565127,  0.49634105,     -0.05416003,  0.,          0.59562245,  0.25315014,  1.05884148,  0.10575426,  0.31175773,  0.37308446,  0., 0., 0., 0., 0.]
+    print("guess",fit_coeffs)
+    fit_coeffs, covariance    = optimize.curve_fit(rational_fit_function, xdata, ydata, p0=( fit_coeffs[0],fit_coeffs[1],fit_coeffs[2],fit_coeffs[3],fit_coeffs[4],fit_coeffs[5],fit_coeffs[6],fit_coeffs[7],fit_coeffs[8],fit_coeffs[9],fit_coeffs[10],fit_coeffs[11],fit_coeffs[12],fit_coeffs[13],fit_coeffs[14],fit_coeffs[15],fit_coeffs[16],fit_coeffs[17],fit_coeffs[18]),maxfev=10000)
+    print("result: fit coefficients",fit_coeffs)
+
+    #reconstruct the fit
+    fit_result  = rational_fit_function(xdata,fit_coeffs[0],fit_coeffs[1],fit_coeffs[2],fit_coeffs[3],fit_coeffs[4],fit_coeffs[5],fit_coeffs[6],fit_coeffs[7],fit_coeffs[8],fit_coeffs[9],fit_coeffs[10],fit_coeffs[11],fit_coeffs[12],fit_coeffs[13],fit_coeffs[14],fit_coeffs[15],fit_coeffs[16],fit_coeffs[17],fit_coeffs[18])
+    fit_result  = fit_result.reshape(y.shape[0],x.shape[0])
+    fit_result  = np.maximum(fit_result,0)
+    fit_result  = np.minimum(fit_result,1)
+
+    return fit_coeffs, fit_result
+
 def SB06collEffi():
     '''
     reconstruct the collision efficiency in the SB scheme
@@ -42,7 +115,10 @@ def SB06collEffi():
 
     return {"D_c_array":D_c_array,"e_coll_array":e_coll_array}
 
-def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm"):
+def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
+    '''
+    k: moment of the PSD
+    '''
 
     #process dataframe which contains particle-particle collision efficiencies
     dfD_clouddrop_array   = np.array(df["D_clouddrop"].drop_duplicates()) #get all different D_clouddrop values
@@ -73,7 +149,7 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm"):
     D_array_cloud            = p[pc_name].a_geo * m_cloud_array ** p[pc_name].b_geo #maximum dimension
 
     #set range for evaluating the bulk coll. efficiency
-    D_mean_snow_array   = np.logspace(-5,-1,20) #mean mass diameter
+    D_mean_snow_array   = np.logspace(-5,-1,50) #mean mass diameter
     D_mean_cloud_array  = np.array([5e-6,7e-6,10e-6,15e-6,20e-6,30e-6,50e-6])[::-1] #np.linspace(1e-6,50e-6,5) #mean mass diameter
     xmean_snow_array = 1./(p[ps_name].a_geo)**(1./p[ps_name].b_geo)*D_mean_snow_array**(1./p[ps_name].b_geo)
     xmean_cloud_array = 1./(p[pc_name].a_geo)**(1./p[pc_name].b_geo)*D_mean_cloud_array**(1./p[pc_name].b_geo)
@@ -114,7 +190,6 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm"):
             if i_s==0: #it is enough to check the integration once
                 print("D_mean_cloud, Ntot/N_array[i],Ltot/L",Dmean_cloud,Ntot/Ncloud_array[i_c],Ltot/L) #,Ntot,Ltot,NDtot) #check if the integration works well
             #integrate e_coll
-            k       = 0     #TODO: think about the moment
             normalization   = 0
             for i_ms,m in enumerate(m_snow_array[:-1]):
                 for i_mc,m in enumerate(m_cloud_array[:-1]):
@@ -131,8 +206,20 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm"):
     bulkCollEffi_dic["D_mean_snow_array"]   = D_mean_snow_array
     bulkCollEffi_dic["D_mean_cloud_array"]   = D_mean_cloud_array
     bulkCollEffi_dic["ce_boehm_bulk"]       = bulkCollEffi_array
+    bulkCollEffi_dic["moment"]       = k
 
     return bulkCollEffi_dic
+
+def calcBulkFit(BulkCollEffi_dic):
+    '''
+    calculate a fit to the bulk collision efficiencies
+    '''
+    #do some transformation here
+
+    fitcoeffs,BulkCollEffi_dic["ce_boehm_bulk_fitted"] = fit_2D_function(np.log10(BulkCollEffi_dic['D_mean_snow_array']).flatten(),BulkCollEffi_dic['D_mean_cloud_array'].flatten(),BulkCollEffi_dic['ce_boehm_bulk'].flatten()) 
+
+
+    return BulkCollEffi_dic
 
 def readPartPartCollEffi(vterm="3",rimegeo="3"):
     '''
@@ -174,9 +261,7 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
     #set labels and limits
     axes[0][0].set_xlabel("D$_{snow}$ [mm]")
     axes[0][0].set_ylabel("E$_{coll}$")
-    #axes[0][0].set_xlim([1e-3,1e1])
     axes[0][0].set_xlim([1e-2,5e1])
-    #axes[0][0].set_xlim([2e-3,6e2])
     axes[0][0].set_ylim([0,1])
     axes[0][0].grid(which="major",b=True)
     axes[0][0].legend()
@@ -188,6 +273,7 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
     for i_Ds,D_snow in enumerate(D_snow_array[50:150:20]):
         df_thisDs = df.loc[df["D_snow"]==D_snow] #select subset of Dataframe
         axes[0][1].plot(df_thisDs["D_clouddrop"]*1e6,df_thisDs["ce_boehm"],label="D$_{snow}$=" + "{:.3f}".format(D_snow*1e3) + "mm" )
+        axes[0][1].plot(df_thisDs["D_clouddrop"]*1e6,df_thisDs["ce_boehm"],label="D$_{snow}$=" + "{:.3f}".format(D_snow*1e3) + "mm" )
 
     #set labels and limits
     axes[0][1].set_xlabel("D$_{cloud}$ [$\mu$m]")
@@ -197,13 +283,14 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
     axes[0][1].grid(which="both",b=True)
     axes[0][1].legend()
     
-    ###plot Ecoll against Dsnow as implemented in SB06
+    ###plot Ecoll against Dsnow as implemented in SB06 and calculated numerically (+fits)
     D_snow  = np.logspace(-3,3,100)
     for i_Dc,D_clouddrop in enumerate(D_clouddrop_array):
         #differentiate Sb06 and numerical in legend
         if i_Dc==0:
             axes[1][0].semilogx(np.nan,np.nan,label="SB06",color="k",linestyle="--")
-            axes[1][0].semilogx(np.nan,np.nan,label="numerical (0th mom.)",color="k",linestyle="-")
+            axes[1][0].semilogx(np.nan,np.nan,label="numerical ("+ str(BulkCollEffi_dic["moment"]) + "th mom.)",color="k",linestyle="-")
+            axes[1][0].semilogx(np.nan,np.nan,label="fit to numerical",color="k",linestyle=":")
 
         i_Dc_dic    = np.where(np.array(SB06collEffi_dic["D_c_array"])==D_clouddrop)[0][0] #find the corresponding value in the dictionary
         #e_coll  = np.zeros_like(D_snow)
@@ -215,6 +302,7 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
             print("D_clouddrop_array and BulkCollEffi_dic[D_mean_cloud_array] are not identical: please check")
 
         axes[1][0].semilogx(BulkCollEffi_dic["D_mean_snow_array"]*1e3,BulkCollEffi_dic["ce_boehm_bulk"][:,i_Dc],label="D$_{cloud}$=" + "{:.0f}".format(D_clouddrop*1e6) + "$\mu$m",linestyle="-",color=l[0].get_color())
+        axes[1][0].semilogx(BulkCollEffi_dic["D_mean_snow_array"]*1e3,BulkCollEffi_dic["ce_boehm_bulk_fitted"][i_Dc,:],label="__D$_{cloud}$=" + "{:.0f}".format(D_clouddrop*1e6) + "$\mu$m",linestyle=":",color=l[0].get_color())
         
 
 
@@ -223,14 +311,13 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
     axes[1][0].set_xlabel("D$_{snow}$ [mm]")
     axes[1][0].set_ylabel("E$_{coll,bulk}$")
     axes[1][0].set_xlim([1e-2,5e1])
-    #axes[1][0].set_xlim([2e-3,6e2])
     axes[1][0].set_ylim([0,1])
     axes[1][0].grid(which="major",b=True)
     axes[1][0].legend()
 
     ###plot Ecoll against Dcloud as imlemented in SB06
     axes[1][1].plot(np.array(SB06collEffi_dic["D_c_array"])*1e6,SB06collEffi_dic["e_coll_array"],label="SB06 D$_{snow}$>150$\mu$m",linestyle="--")
-    axes[1][1].plot(np.nan,np.nan,label="numerical (0th mom.):",color="k",linestyle="None") #for legend only
+    axes[1][1].plot(np.nan,np.nan,label="numerical ("+ str(BulkCollEffi_dic["moment"]) + "th mom.)",color="k",linestyle="None") #for legend only
     for i_Ds,D_snow in enumerate(BulkCollEffi_dic["D_mean_snow_array"]):
         if i_Ds%3 != 0: #plot only every 5th but dont mess with the index
             continue
@@ -248,26 +335,40 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
 
 if __name__ == '__main__':
     import argparse
+    import pickle
     parser =  argparse.ArgumentParser(description='plot particle-based collision efficiency and ')
 
-    #parser.add_argument('-pPartPart','--plotParticleParticleCollisionEfficiency', nargs=1, help='plot the particle-based collision efficiency')
+    parser.add_argument('-col','--calc_or_load', nargs=1, help='calculate the bulk collision efficiencies (1) or load them from reivous calculation (0)')
+
+    parser.add_argument('-m','--moment', nargs=1, help='which moment to use for the bulk calculations?')
 
     args = parser.parse_args()
-    #pPartPart = args.plotParticleParticleCollisionEfficiency[0]
-    
+    calc_or_load = (args.calc_or_load[0]=="1")
+    moment = int(args.moment[0])
+
     #set up figure
     fig,axes    = plt.subplots(nrows=2,ncols=2,figsize=(12,12))   
-    
+
     #get data from McSnow's check routine
     df      = readPartPartCollEffi(vterm="1",rimegeo="3")
-    
+
     #get parameterization from SB06    
     SB06collEffi_dic    = SB06collEffi()
+    if calc_or_load: 
+        
+        #calculate the bulk collision efficiency numerically 
+        BulkCollEffi_dic    = calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=moment)
 
-    #calculate the bulk collision efficiency numerically 
-    BulkCollEffi_dic    = calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm")
+        with open('BulkEc'+ str(BulkCollEffi_dic["moment"]) +  '.pickle', 'wb') as handle:
+            pickle.dump(BulkCollEffi_dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    else:
+        with open('BulkEc'+ str(moment) +  '.pickle', 'rb') as handle:
+            BulkCollEffi_dic = pickle.load(handle)
+
+    #make a fit to the bulk collision efficiency
+    BulkCollEffi_dic    = calcBulkFit(BulkCollEffi_dic)
 
     #plot all coll. efficiencies
     axes    = plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic)
 
-    plt.savefig("colleffi.png")
+    plt.savefig("colleffi_mom"+ str(BulkCollEffi_dic["moment"]) + ".png")
