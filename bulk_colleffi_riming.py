@@ -46,17 +46,15 @@ def fit_2D_function(x,y,z):
 
     from scipy import optimize
 
-    #fitcoeffs, pcov = optimize.curve_fit(fit_function, [x,y], z,method="lm", p0=( 0.0, -0.1, 10.0, 1e-7))   #p0 guesses p1,px1,px2,py1
-    #ydata   = z.ravel(order="F")
-
+    #reshape collision efficiency array to get the right order
     zmatrix = z.reshape(len(x),len(y))
-
-    D_snow_max      = -3.122448979591837
-    x_transform     = x - D_snow_max
-    y_transform     = y*1e5
-    #crop data to disregard small clouddroplet in fit
-
     ydata   = zmatrix.flatten(order="F")
+
+    #transform Dsnow->x_transform and Dcloud-> y_transform
+    D_snow_max      = -3.122448979591837
+    x_transform     = np.log10(x) - D_snow_max
+    y_transform     = y*1e5
+
 
     #ydata   = zmatrix.flatten(order="C")
     for i_cloud,Dcloud in enumerate(y):
@@ -117,6 +115,9 @@ def SB06collEffi():
 
 def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
     '''
+    calculate a fit to the bulk collision efficiency which was calculated numerically
+    df: dataframe containing the numerical bulk collision efficiency
+    e_coll_type: selection of particle-particle collision efficieny (so far here only ce_boehm is implemented, but extension should be easy)
     k: moment of the PSD
     '''
 
@@ -150,7 +151,7 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
 
     #set range for evaluating the bulk coll. efficiency
     D_mean_snow_array   = np.logspace(-5,-1,50) #mean mass diameter
-    D_mean_cloud_array  = np.array([5e-6,7e-6,10e-6,15e-6,20e-6,30e-6,50e-6])[::-1] #np.linspace(1e-6,50e-6,5) #mean mass diameter
+    D_mean_cloud_array  = np.array([5e-6,7e-6,10e-6,15e-6,20e-6,30e-6,50e-6])[::-1] #mean mass diameter
     xmean_snow_array = 1./(p[ps_name].a_geo)**(1./p[ps_name].b_geo)*D_mean_snow_array**(1./p[ps_name].b_geo)
     xmean_cloud_array = 1./(p[pc_name].a_geo)**(1./p[pc_name].b_geo)*D_mean_cloud_array**(1./p[pc_name].b_geo)
 
@@ -176,7 +177,7 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
             Ntot += (N_m_snow[i_ms+1]+N_m_snow[i_ms])/2.  * delta_m_snow_array[i_ms]
             Ltot += ((N_m_snow[i_ms+1] * m_snow_array[i_ms+1] +N_m_snow[i_ms] * m_snow_array[i_ms] ))/2. * delta_m_snow_array[i_ms]
             
-        print("D_mean_snow, Ntot/N_array[i],Ltot/L",Dmean_snow,Ntot/Nsnow_array[i_s],Ltot/L) #,Ntot,Ltot,NDtot) #check if the integration works well
+        print("D_mean_snow, Ntot/N_array[i],Ltot/L",Dmean_snow,Ntot/Nsnow_array[i_s],Ltot/L) #check if the integration works well
         for i_c,Dmean_cloud in enumerate(D_mean_cloud_array):
             #get mean mass from mean mass diameter
             Ncloud_array[i_c] = L / xmean_cloud_array[i_c] #number concentratiion
@@ -188,7 +189,8 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
                 Ntot += (N_m_cloud[i_mc+1]+N_m_cloud[i_mc])/2.  * delta_m_cloud_array[i_mc]
                 Ltot += ((N_m_cloud[i_mc+1] * m_cloud_array[i_mc+1] +N_m_cloud[i_mc] * m_cloud_array[i_mc] ))/2. * delta_m_cloud_array[i_mc]
             if i_s==0: #it is enough to check the integration once
-                print("D_mean_cloud, Ntot/N_array[i],Ltot/L",Dmean_cloud,Ntot/Ncloud_array[i_c],Ltot/L) #,Ntot,Ltot,NDtot) #check if the integration works well
+                print("D_mean_cloud, Ntot/N_array[i],Ltot/L",Dmean_cloud,Ntot/Ncloud_array[i_c],Ltot/L)  #check if the integration works well
+
             #integrate e_coll
             normalization   = 0
             for i_ms,m in enumerate(m_snow_array[:-1]):
@@ -196,11 +198,9 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
                     i_snow_nearest,dummy    = find_nearest(dfD_snow_array, D_array_snow[i_ms+1])
                     i_cloud_nearest,dummy    = find_nearest(dfD_clouddrop_array, D_array_cloud[i_mc+1])
                     collEff                 =  df_ce_boehm_array[i_cloud_nearest,i_snow_nearest]  #get the collision efficiency from the nearest datapoint (simple search along Dclouddrop and Dsnow
-                    #print("i_snow_nearest,i_cloud_nearest,collEff",i_snow_nearest,i_cloud_nearest,D_array_cloud[i_mc+1],collEff)
                     normalization                 += ((D_array_snow[i_ms+1]**2 * D_array_cloud[i_mc]**2 * N_m_snow[i_ms+1] * N_m_cloud[i_mc+1] * m_cloud_array[i_mc+1]**k) + (D_array_snow[i_ms]**2 * D_array_cloud[i_mc]**2 * N_m_snow[i_ms] * N_m_cloud[i_mc] * m_cloud_array[i_mc]**k))/2. * delta_m_snow_array[i_ms] * delta_m_cloud_array[i_mc] 
                     bulkCollEffi_array[i_s,i_c]   +=  ((collEff * D_array_snow[i_ms+1]**2 * D_array_cloud[i_mc]**2 * N_m_snow[i_ms+1] * N_m_cloud[i_mc+1] * m_cloud_array[i_mc+1]**k) + (collEff * D_array_snow[i_ms]**2 * D_array_cloud[i_mc]**2 * N_m_snow[i_ms] * N_m_cloud[i_mc] * m_cloud_array[i_mc]**k))/2. * delta_m_snow_array[i_ms] * delta_m_cloud_array[i_mc] 
             bulkCollEffi_array[i_s,i_c]     = bulkCollEffi_array[i_s,i_c] / normalization
-            #print("bulkCollEffi_array[i_s,i_c]",bulkCollEffi_array[i_s,i_c])
 
     bulkCollEffi_dic    = dict()
     bulkCollEffi_dic["D_mean_snow_array"]   = D_mean_snow_array
@@ -209,17 +209,6 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0):
     bulkCollEffi_dic["moment"]       = k
 
     return bulkCollEffi_dic
-
-def calcBulkFit(BulkCollEffi_dic):
-    '''
-    calculate a fit to the bulk collision efficiencies
-    '''
-    #do some transformation here
-
-    fitcoeffs,BulkCollEffi_dic["ce_boehm_bulk_fitted"] = fit_2D_function(np.log10(BulkCollEffi_dic['D_mean_snow_array']).flatten(),BulkCollEffi_dic['D_mean_cloud_array'].flatten(),BulkCollEffi_dic['ce_boehm_bulk'].flatten()) 
-
-
-    return BulkCollEffi_dic
 
 def readPartPartCollEffi(vterm="3",rimegeo="3"):
     '''
@@ -293,11 +282,9 @@ def plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic):
             axes[1][0].semilogx(np.nan,np.nan,label="fit to numerical",color="k",linestyle=":")
 
         i_Dc_dic    = np.where(np.array(SB06collEffi_dic["D_c_array"])==D_clouddrop)[0][0] #find the corresponding value in the dictionary
-        #e_coll  = np.zeros_like(D_snow)
         e_coll  = np.where(D_snow>0.15,SB06collEffi_dic["e_coll_array"][i_Dc_dic],0.0) #apply: snow_D_crit_c   
         l   = axes[1][0].semilogx(D_snow,e_coll,label="__SB06 D$_{cloud}$=" + "{:.0f}".format(D_clouddrop*1e6) + "$\mu$m",linestyle="--") #,color=lines_partDc[i_Dc][0].get_color())
 
-        #for i_Dc,D_clouddrop in enumerate(BulkCollEffi_dic["D_mean_cloud_array"]): #ATTENTION: commenting this line means BulkCollEffi_dic["D_mean_cloud_array"] and D_clouddrop_array must be identical
         if not all(np.array(D_clouddrop_array)==BulkCollEffi_dic["D_mean_cloud_array"]):
             print("D_clouddrop_array and BulkCollEffi_dic[D_mean_cloud_array] are not identical: please check")
 
@@ -338,7 +325,7 @@ if __name__ == '__main__':
     import pickle
     parser =  argparse.ArgumentParser(description='plot particle-based collision efficiency and ')
 
-    parser.add_argument('-col','--calc_or_load', nargs=1, help='calculate the bulk collision efficiencies (1) or load them from reivous calculation (0)')
+    parser.add_argument('-col','--calc_or_load', nargs=1, help='calculate the bulk collision efficiencies (1) or load them from previous calculation (0)')
 
     parser.add_argument('-m','--moment', nargs=1, help='which moment to use for the bulk calculations?')
 
@@ -366,7 +353,8 @@ if __name__ == '__main__':
             BulkCollEffi_dic = pickle.load(handle)
 
     #make a fit to the bulk collision efficiency
-    BulkCollEffi_dic    = calcBulkFit(BulkCollEffi_dic)
+    #BulkCollEffi_dic    = calcBulkFit(BulkCollEffi_dic)
+    fitcoeffs,BulkCollEffi_dic["ce_boehm_bulk_fitted"] = fit_2D_function(BulkCollEffi_dic['D_mean_snow_array'].flatten(),BulkCollEffi_dic['D_mean_cloud_array'].flatten(),BulkCollEffi_dic['ce_boehm_bulk'].flatten()) 
 
     #plot all coll. efficiencies
     axes    = plot_colleffi(axes,df,SB06collEffi_dic,BulkCollEffi_dic)
