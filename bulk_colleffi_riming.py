@@ -207,7 +207,7 @@ def calcBulkCollEffiNumeric(df,e_coll_type="ce_boehm",k=0,rime_frac=0):
         #get mean mass from mean mass di_sameter
         Nsnow_array[i_s] = L / xmean_snow_array[i_s] #number concentration
 
-        #get mass di_sstri_sbuti_son
+        #get mass distribution
         N_m_snow,N0m_array_snow[i_s],lamm = generalized_gamma(Nsnow_array[i_s],xmean_snow_array[i_s],p[ps_name].nu_SB,p[ps_name].mu_SB,m_snow_array)
 
         Ntot = 0; Ltot = 0
