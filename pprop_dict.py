@@ -289,6 +289,24 @@ def calculate_PSD(twomom,curr_cat,diam,i_height=249):
     
     return N_D,M_D
 
+def calculate_PSD2(q,N,curr_cat,Dmax_array):
+    '''
+    q,N:        0th and 1st moment of the particle mass distribution (PSM)
+    curr_cat:   particle class (contains shape parameter etc.)
+    Dmax_array: array of Dmax at which PSD is evaluated
+    '''
+    from scipy.special import gamma
+
+    #calculate the distribution based on PAMTRA code (taken from PAMTRA make_dist_params.f90)
+    work2 = gamma((curr_cat.mu_max + curr_cat.b_ms + 1.0) / curr_cat.gam)
+    work3 = gamma((curr_cat.mu_max + 1.0) / curr_cat.gam)
+    lam	=	(curr_cat.a_ms / q * N * work2 / work3)**(curr_cat.gam / curr_cat.b_ms)
+    N_0 = curr_cat.gam * N / work3 * lam**((curr_cat.mu_max + 1.0) / curr_cat.gam)
+    
+    N_D	= N_0*Dmax_array**curr_cat.mu_max*np.exp(-lam*Dmax_array**curr_cat.gam) #/Dmax_array #not normalized number concentrations; normalized with /del_diam
+
+    return N_D
+
 def calculate_PSM(q,N,curr_cat,mass_array):
     '''
     q,N:        0th and 1st moment of the particle mass distribution (PSM)

@@ -27,7 +27,8 @@ def read_coll_rates(pairs):
                      "coll_n_rog", "coll_q_rog",
                      "coll_n_num2","coll_q_num2",
                      "coll_n_sbb", "coll_q_sbb",
-                     "coll_n_rog_D", "coll_q_rog_D"] 
+                     "coll_n_rog_D", "coll_q_rog_D",
+                     "D_s","D_eq_i"] 
         filename    = "collint_ice_snow_10.dat" #so far only m=1.0 is read in
 
     df = pd.read_csv(path + filename,names=colnames,header=None,delimiter="\s+")
@@ -39,13 +40,13 @@ def plot_coll_rates_selfcollection(axes,df,pairs):
     if pairs=="ice_ice":
         mue_array   = [2,8] #(3.0*nu_mass+2.0): nu_mass=0 is mue=2; nu_mass=2 is mue=8
         Dvar        = "D_i"
-        D_var_str   = "D$_{ice}$"
+        D_var_str   = "D$_{max,ice}$"
         moments_short   = ["n","q"]
         
     if pairs=="snow_snow":
         mue_array   = [2,8] #(3.0*nu_mass+2.0): nu_mass=0 is mue=2; nu_mass=2 is mue=8
         Dvar        = "D_s"
-        D_var_str   = "D$_{snow}$"
+        D_var_str   = "D$_{max,snow}$"
         moments_short   = ["n"]
   
     colors       = ["blue","green","yellow"] 
@@ -105,8 +106,8 @@ def plot_coll_rates_icesnowcollection(axes,df,pairs):
 
     #(3.0*nu_mass+2.0): nu_mass=0 is mue=2; nu_mass=2 is mue=8;check how nu_mass and mue is set for the two categories in the collint.f90 code
         
-    Dvar        = "D_r"
-    D_var_str   = "D$_{eq,snow}$"
+    Dvar        = "D_s"
+    D_var_str   = "D$_{max,snow}$"
     moments_short   = ["n","q"]
   
     colors      = ["red","orange","blue","green",""] 
@@ -139,7 +140,8 @@ def plot_coll_rates_icesnowcollection(axes,df,pairs):
            
  
     for ax in axes.flatten(): 
-        ax.set_xlim([1e-2,3e0])
+        #ax.set_xlim([1e-2,3e0])
+        ax.set_xlim([5e-3,10e0])
         ax.set_xlabel(D_var_str + " [mm]")
         ax.legend()
     axes[0][0].set_ylim([1e-2,1e0]) #number collision rate
@@ -173,7 +175,7 @@ if __name__ == '__main__':
     if pairs in ["ice_ice"]:
         fig,axes    = plt.subplots(nrows=2,ncols=2,figsize=(7,7))   
     elif pairs in ["ice_snow"]:
-        fig,axes    = plt.subplots(nrows=2,ncols=2,figsize=(12,12))   
+        fig,axes    = plt.subplots(nrows=2,ncols=2,figsize=(9,9))   
     elif pairs in ["snow_snow"]:
         fig,axes    = plt.subplots(nrows=2,ncols=1,figsize=(3.5,7))   
         axes        = axes[...,np.newaxis]
